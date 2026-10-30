@@ -28,6 +28,69 @@ Prefer download-then-run over `curl | bash`: you get to read it, and the script 
 terminal for its confirmation prompts. (`curl … | sudo bash -s -- status` works for the
 read-only commands.)
 
+## How to use it
+
+### Option A — let an AI agent run it (recommended)
+
+Open Claude Code (or a similar agent with SSH access to the server) and say:
+
+> **"Upgrade GitLab using gitlab-upgrade-kit."**
+
+The agent copies the script to the server and runs it over SSH following [AGENT.md](AGENT.md).
+You are only asked for what a machine cannot do:
+
+| When the agent asks | You do |
+|---|---|
+| "Approve the path?" | Read the path and the version-notes links, say yes |
+| "Copy the backup off" | Run the `scp` + checksum lines it gives you on your laptop; confirm the checksums match |
+| "Take the snapshot" | Shut down the server, take the snapshot in your cloud console, power on, say it's back |
+| "Check the browser" | `/help`, open a project, `/admin/background_migrations` |
+
+Everything else — checks, cleanup, backup, upgrade hops, migration waits, health checks,
+runner — is automatic.
+
+### Option B — run it yourself
+
+On the server (`ssh <ssh-alias>`):
+
+```bash
+tmux new -s gitlab
+curl -fsSLO https://raw.githubusercontent.com/princeppy/gitlab-upgrade-kit/v1.0.0/gitlab-upgrade.sh
+
+sudo bash gitlab-upgrade.sh status     # quick health look
+sudo bash gitlab-upgrade.sh path       # which versions it will go through
+sudo bash gitlab-upgrade.sh prepare    # checks → cleanup report → backup → asks you to copy it off
+```
+
+Copy the backup to your laptop with the commands it prints, then **shut down** the server
+(not "Power off"), take the snapshot, power on, reconnect:
+
+```bash
+tmux new -s gitlab
+sudo bash gitlab-upgrade.sh resume     # upgrade → verify → runner → finish
+```
+
+It stops and asks you to type `DONE` at each human step.
+
+### Handy single commands
+
+| Command | Use |
+|---|---|
+| `gitlab-upgrade.sh status` | Health check at any time |
+| `gitlab-upgrade.sh cleanup` | See what disk can be freed (deletes nothing) |
+| `gitlab-upgrade.sh cleanup --apply` | Actually free it (asks per item) |
+| `gitlab-upgrade.sh path --target 19.8` | Plan an upgrade only as far as 19.8 |
+| `gitlab-upgrade.sh help` | Full list |
+
+### Good to know
+
+- **Always inside `tmux`.** If your connection drops: `tmux attach -t gitlab`.
+- Logs: `/root/gitlab-upgrade/logs/` on the server.
+- **Never run `apt upgrade` on upgrade day.** OS updates go on another day.
+- If anything fails, the script stops by itself and prints why (`✘ …` plus a
+  `::result … status=fail` line).
+- After each upgrade, record it in your own private copy of the SOP's history table.
+
 ## Commands
 
 | Command | What it does | Changes the server? |
